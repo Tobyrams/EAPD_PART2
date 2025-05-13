@@ -71,7 +71,7 @@ begin
   values (
     new.id,            -- same UUID as auth user
     new.email,         -- default full_name to their email
-    'farmer',          -- default role
+    coalesce(new.raw_user_meta_data->>'role', 'farmer'),  -- use role from metadata or default to farmer
     now(),
     now()
   );

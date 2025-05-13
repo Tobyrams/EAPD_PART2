@@ -7,34 +7,87 @@ export default function Products() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
+  const [selectedFarmer, setSelectedFarmer] = useState("");
   const [categories, setCategories] = useState([]);
+  const [farmers, setFarmers] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [productToDelete, setProductToDelete] = useState(null);
   const [editingProduct, setEditingProduct] = useState(null);
   const [user, setUser] = useState(null);
+  const [userRole, setUserRole] = useState(null);
   const [formData, setFormData] = useState({
     name: "",
     category: "",
     production_date: "",
   });
 
-  // Get current user
+  // Get current user and role
   useEffect(() => {
     const getUser = async () => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
       setUser(user);
+
+      if (user) {
+        const { data: profile, error } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", user.id)
+          .single();
+
+        if (error) {
+          console.error("Error fetching profile:", error);
+        } else if (profile?.role) {
+          setUserRole(profile.role);
+        }
+      }
     };
     getUser();
   }, []);
 
+  // Fetch farmers for employee filter
+  const fetchFarmers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, full_name")
+        .eq("role", "farmer")
+        .order("full_name");
+
+      if (error) throw error;
+      setFarmers(data);
+    } catch (error) {
+      console.error("Error fetching farmers:", error);
+    }
+  };
+
   // Fetch products
   const fetchProducts = async () => {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from("products")
-        .select("*")
+        .select(
+          `
+          *,
+          profiles:farmer_id (
+            full_name
+          )
+        `
+        )
         .order("created_at", { ascending: false });
+
+      // If user is a farmer, only show their products
+      if (userRole === "farmer") {
+        query = query.eq("farmer_id", user.id);
+      }
+      // If employee has selected a specific farmer, filter by that farmer
+      else if (userRole === "employee" && selectedFarmer) {
+        query = query.eq("farmer_id", selectedFarmer);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       setProducts(data);
@@ -54,7 +107,10 @@ export default function Products() {
 
   useEffect(() => {
     fetchProducts();
-  }, []);
+    if (userRole === "employee") {
+      fetchFarmers();
+    }
+  }, [userRole, selectedFarmer]);
 
   // Filter products
   const filteredProducts = products.filter((product) => {
@@ -116,9 +172,6 @@ export default function Products() {
 
   // Handle delete
   const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this product?"))
-      return;
-
     try {
       const { error } = await supabase
         .from("products")
@@ -131,6 +184,9 @@ export default function Products() {
       fetchProducts();
     } catch (error) {
       toast.error(error.message);
+    } finally {
+      setIsDeleteModalOpen(false);
+      setProductToDelete(null);
     }
   };
 
@@ -154,16 +210,18 @@ export default function Products() {
     <div className="container mx-auto p-4">
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold">Products</h1>
-        <button
-          onClick={() => {
-            setEditingProduct(null);
-            setFormData({ name: "", category: "", production_date: "" });
-            setIsModalOpen(true);
-          }}
-          className="btn btn-primary"
-        >
-          Add Product
-        </button>
+        {userRole !== "employee" && (
+          <button
+            onClick={() => {
+              setEditingProduct(null);
+              setFormData({ name: "", category: "", production_date: "" });
+              setIsModalOpen(true);
+            }}
+            className="btn btn-primary"
+          >
+            Add Product
+          </button>
+        )}
       </div>
 
       {/* Filters */}
@@ -187,6 +245,20 @@ export default function Products() {
             </option>
           ))}
         </select>
+        {userRole === "employee" && (
+          <select
+            className="select select-bordered"
+            value={selectedFarmer}
+            onChange={(e) => setSelectedFarmer(e.target.value)}
+          >
+            <option value="">All Farmers</option>
+            {farmers.map((farmer) => (
+              <option key={farmer.id} value={farmer.id}>
+                {farmer.full_name}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
 
       {/* Products Table */}
@@ -202,7 +274,8 @@ export default function Products() {
                 <th>Name</th>
                 <th>Category</th>
                 <th>Production Date</th>
-                <th>Actions</th>
+                {userRole === "employee" && <th>Farmer</th>}
+                {userRole !== "employee" && <th>Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -213,6 +286,9 @@ export default function Products() {
                   <td>
                     {new Date(product.production_date).toLocaleDateString()}
                   </td>
+                  {userRole === "employee" && (
+                    <td>{product.profiles?.full_name}</td>
+                  )}
                   <td>
                     <div className="flex gap-2">
                       {product.farmer_id === user?.id && (
@@ -224,7 +300,10 @@ export default function Products() {
                             Edit
                           </button>
                           <button
-                            onClick={() => handleDelete(product.id)}
+                            onClick={() => {
+                              setProductToDelete(product);
+                              setIsDeleteModalOpen(true);
+                            }}
                             className="btn btn-sm btn-ghost text-error"
                           >
                             Delete
@@ -240,7 +319,7 @@ export default function Products() {
         </div>
       )}
 
-      {/* Modal */}
+      {/* Add/Edit Product Modal */}
       {isModalOpen && (
         <div className="modal modal-open">
           <div className="modal-box">
@@ -309,6 +388,36 @@ export default function Products() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {isDeleteModalOpen && productToDelete && (
+        <div className="modal modal-open">
+          <div className="modal-box">
+            <h3 className="font-bold text-lg mb-4">Confirm Delete</h3>
+            <p className="mb-4">
+              Are you sure you want to delete the product "
+              <b>{productToDelete.name}</b>"? This action cannot be undone.
+            </p>
+            <div className="modal-action">
+              <button
+                className="btn"
+                onClick={() => {
+                  setIsDeleteModalOpen(false);
+                  setProductToDelete(null);
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-error"
+                onClick={() => handleDelete(productToDelete.id)}
+              >
+                Delete
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -12,7 +12,9 @@ import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Products from "./pages/Products";
+import UserManagement from "./pages/UserManagement";
 import ProtectedRoute from "./components/ProtectedRoute";
+import EmployeeRoute from "./components/EmployeeRoute";
 import Navbar from "./components/Navbar";
 
 export default function App() {
@@ -41,6 +43,17 @@ export default function App() {
             <ProtectedRoute>
               <Navbar />
               <Products />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/users"
+          element={
+            <ProtectedRoute>
+              <EmployeeRoute>
+                <Navbar />
+                <UserManagement />
+              </EmployeeRoute>
             </ProtectedRoute>
           }
         />

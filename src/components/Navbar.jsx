@@ -67,6 +67,16 @@ export default function Navbar() {
         >
           Products
         </Link>
+        {userRole === "Employee" && (
+          <Link
+            to="/users"
+            className={`btn ${
+              isActive("/users") ? "btn-primary" : "btn-ghost"
+            }`}
+          >
+            User Management
+          </Link>
+        )}
 
         <div className="dropdown dropdown-end">
           <div
