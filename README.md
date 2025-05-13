@@ -5,16 +5,17 @@
 
 Before you begin, ensure you have the following installed:
 
-- Node.js (Latest LTS version recommended)
+- [Node.js](https://nodejs.org/en/download) (Latest LTS version recommended)
 - npm (comes with Node.js)
+- [Visual Studio Code](https://code.visualstudio.com/download)
 - Git
 
 ## Getting Started
 
-1. Clone the repository:
+1. Clone the repository(In VS Code Terminal):
 
 ```bash
-git clone [your-repository-url]
+git clone [https://github.com/Tobyrams/EAPD_PART2.git]
 cd EAPD_PART2
 ```
 
