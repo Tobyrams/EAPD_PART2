@@ -1,6 +1,5 @@
 # EAPD Part 2
 
-
 ## Prerequisites
 
 Before you begin, ensure you have the following installed:
@@ -15,7 +14,7 @@ Before you begin, ensure you have the following installed:
 1. Clone the repository(In VS Code Terminal):
 
 ```bash
-git clone [https://github.com/Tobyrams/EAPD_PART2.git]
+git clone https://github.com/Tobyrams/EAPD_PART2.git
 cd EAPD_PART2
 ```
 
@@ -33,11 +32,11 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 VITE_SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 ```
 
-4. Start the development server(This is to run the application locally):
+4. Run Locally (Note App Needs Backend Config to run smoothly):
 
 ```bash
 npm run dev
-```
+````
 
 The application will be available at `http://localhost:5173` by default.
 
@@ -61,25 +60,42 @@ The application will be available at `http://localhost:5173` by default.
      VITE_SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
      ```
 
-3. Set Up Database Tables:
+3. Enable Authentication (if needed):
+
+   - Go to 'Authentication > Sign In/ Providers' in your Supabase dashboard
+   - Go to 'Email' under Auth Providers and click it and make sure 'Confirm Email' is DISABLED. (This is to make user email registration and login easier by not allowing user to confirm their email).
+   - Then click save at the bottom.
+
+4. Set Up Database Tables:
 
    - In your Supabase dashboard, go to the 'SQL Editor'
    - Copy and paste the 'Schema.sql' found in this project (supabase > Schema.sql) in the 'SQL Editor'.
-<details>
-<summary>
-   Schema.sql
-</summary>
-   
+   <details>
+   <summary>
+      Schema.sql
+   </summary>
+
 ```
 /*
   EAPD Part 2: Supabase Schema
   Paste into your SQL Editor in Supabase and click Run
 */
 
+-- profiles: one row per user (farmer or employee)
+DROP TABLE IF EXISTS profiles CASCADE;
+create table if not exists public.profiles (
+  id          uuid        primary key references auth.users not null,
+  full_name   text        not null,
+  role        text        not null check (role in ('farmer','employee')),
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+
 /*------------------------------------------------------------------------------
   1. UTILITY FUNCTIONS
 ------------------------------------------------------------------------------*/
 -- Returns true if the current user’s role = 'employee'
+DROP FUNCTION IF EXISTS public.is_employee() CASCADE;
 create or replace function public.is_employee()
   returns boolean
   language sql
@@ -90,25 +106,16 @@ as $$
    where id = auth.uid();
 $$;
 
-
 /*------------------------------------------------------------------------------
-  2. PROFILES TABLE & ROW-LEVEL SECURITY
+  2. PROFILES ROW-LEVEL SECURITY
 ------------------------------------------------------------------------------*/
--- profiles: one row per user (farmer or employee)
-create table if not exists public.profiles (
-  id          uuid        primary key references auth.users not null,
-  full_name   text        not null,
-  role        text        not null check (role in ('farmer','employee')),
-  created_at  timestamptz not null default now(),
-  updated_at  timestamptz not null default now()
-);
-
 -- Enable RLS on profiles
 alter table public.profiles
   enable row level security;
 
 -- Only allow farmers to see their own row
-create policy if not exists profiles_select_own
+drop policy if exists profiles_select_own on public.profiles;
+create policy profiles_select_own
   on public.profiles
   for select
   using ( auth.uid() = id );
@@ -121,13 +128,17 @@ create policy profiles_select_all
   using ( public.is_employee() );
 
 -- Only employees can insert new farmer profiles
-create policy if not exists profiles_insert_by_employee
+drop policy if exists profiles_insert_by_employee on public.profiles;
+create policy profiles_insert_by_employee
   on public.profiles
   for insert
   with check (
     role = 'farmer'
     and public.is_employee()
   );
+
+
+
 
 
 /*------------------------------------------------------------------------------
@@ -178,7 +189,8 @@ alter table public.products
   enable row level security;
 
 -- INSERT: farmers may only insert their own products
-create policy if not exists products_insert_by_farmer
+DROP POLICY IF EXISTS products_insert_by_farmer ON public.products;
+create policy  products_insert_by_farmer
   on public.products
   for insert
   with check ( auth.uid() = farmer_id );
@@ -186,7 +198,8 @@ create policy if not exists products_insert_by_farmer
 -- SELECT:
 --   • farmers see only their products
 --   • employees see all products
-create policy if not exists products_select_by_farmer
+DROP POLICY IF EXISTS products_select_by_farmer ON public.products;
+create policy  products_select_by_farmer
   on public.products
   for select
   using ( auth.uid() = farmer_id );
@@ -200,13 +213,14 @@ create policy products_select_by_employee
 -- UPDATE:
 --   • farmers update only their products
 --   • employees update any product
-create policy if not exists products_update_by_farmer
+drop policy if exists products_update_by_farmer on public.products;
+create policy products_update_by_farmer
   on public.products
   for update
   using ( auth.uid() = farmer_id )
   with check ( auth.uid() = farmer_id );
 
-drop policy if exists products_update_by_employee on public.products;
+drop policy if exists products_update_by_employee on public.products; 
 create policy products_update_by_employee
   on public.products
   for update
@@ -216,7 +230,8 @@ create policy products_update_by_employee
 -- DELETE:
 --   • farmers delete only their products
 --   • employees delete any product
-create policy if not exists products_delete_by_farmer
+drop policy if exists products_delete_by_farmer on public.products;
+create policy products_delete_by_farmer
   on public.products
   for delete
   using ( auth.uid() = farmer_id );
@@ -227,14 +242,14 @@ create policy products_delete_by_employee
   for delete
   using ( public.is_employee() );
 
+
 ```
-</details>
 
-4. Enable Authentication (if needed):
+## Employee Role Activation
 
-   - Go to 'Authentication > Sign In/ Providers' in your Supabase dashboard
-   - Go to 'Email' under Auth Providers and click it and make sure 'Confirm Email' is DISABLED. (This is to make user email registration and login easier by not allowing user to confirm their email).
-   - Then click save at the bottom.
+- We need to set a users role as 'employee' so that we can have one as the app create the role 'farmer' by default
+- Once a you have created a user by registering one through the application open up [Supabase](https://supabase.com/dashboard/) and go into the project you created earlier.
+- Go click on 'table editor' then click on the 'profiles' table and click on the user that we want to change their role to 'employee' after that login with that user and they will have 'employee' role
 
 ## Available Scripts
 
