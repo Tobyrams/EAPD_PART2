@@ -13,6 +13,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Products from "./pages/Products";
 import ProtectedRoute from "./components/ProtectedRoute";
+import Navbar from "./components/Navbar";
 
 export default function App() {
   useEffect(() => {
@@ -29,6 +30,7 @@ export default function App() {
           path="/dashboard"
           element={
             <ProtectedRoute>
+              <Navbar />
               <Dashboard />
             </ProtectedRoute>
           }
@@ -37,6 +39,7 @@ export default function App() {
           path="/products"
           element={
             <ProtectedRoute>
+              <Navbar />
               <Products />
             </ProtectedRoute>
           }
